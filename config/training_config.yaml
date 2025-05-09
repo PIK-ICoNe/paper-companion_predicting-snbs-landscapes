@@ -1,0 +1,12 @@
+training_dir: "/home/nauck/joined_work/landscape_generation/ml_training/test"
+dataset_root_path: "/home/nauck/joined_work/landscape_generation/datasets/root_path"
+batch_size: 32
+learning_rate: 6.767139599714456e-05
+num_epochs: 250
+eval_interval: 10
+train_slice_index: [1, 7000]
+val_slice_index: [7001, 8500]
+test_slice_index: [8501, 10000]
+dataset_name: "ds20"
+num_sections: 20
+manual_seed: 1

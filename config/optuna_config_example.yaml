@@ -1,0 +1,28 @@
+study_name: gnn_hyperparameter_study
+learning_rate:
+  low: 1e-5
+  high: 1
+gnn_hidden_channels:
+  low: 64
+  high: 256
+gnn_out_channels:
+  low: 64
+  high: 256
+gnn_dropout_rate:
+  low: 0.0
+  high: 0.5
+gnn_num_layers:
+  low: 1
+  high: 5
+mlp_hidden_channels:
+  low: 64
+  high: 256
+mlp_dropout:
+  low: 0.0
+  high: 0.5
+gnn_layer_type:
+  choices: ['GCNConv', 'GATConv']
+dbgnn::num_steps:
+  low: 64
+  high: 256
+n_trials: 10

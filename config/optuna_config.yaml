@@ -1,0 +1,5 @@
+study_name: opt_TAG_ds100_lr
+learning_rate:
+  low: 1e-7
+  high: 1e-3
+n_trials: 20
