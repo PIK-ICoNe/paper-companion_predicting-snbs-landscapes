@@ -1,6 +1,9 @@
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
+from src.shock_locator import get_shock_location
+from src.training import _unwrap_model_output
 
 # from utils import compute_snbs_from_heatmap
 
@@ -18,7 +21,8 @@ def set_heatmap_properties(ax, input_heatmap, title):
     # Set axis labels with increased font size
     ax.set_xlabel(r"$\phi$", fontsize=fontsize_labels)
     ax.set_ylabel(r"$\dot{\phi}$", fontsize=fontsize_labels)
-    ax.set_title(title, fontsize=fontsize_title)
+    if title != None:
+        ax.set_title(title, fontsize=fontsize_title)
 
     # Round the x and y labels and show a reduced number of ticks
     num_ticks = 5  # Number of ticks to show
@@ -31,16 +35,39 @@ def set_heatmap_properties(ax, input_heatmap, title):
     ax.invert_yaxis()  # Invert the y-axis
 
 
-def show_heatmap(input_heatmap, samples, title=None, ax=None, vmin=None, vmax=None):
-    # Define the x and y axis labels
+def show_heatmap(
+    input_heatmap,
+    samples,
+    title=None,
+    ax=None,
+    vmin=None,
+    vmax=None,
+    highlight_indices=None,
+    highlight_color="lime",
+    marker_size=None,
+    marker_edgewidth=2,
+    flip_highlight_indices=False,
+):
+    if isinstance(input_heatmap, torch.Tensor):
+        input_heatmap = input_heatmap.cpu().numpy()
+    if isinstance(samples, torch.Tensor):
+        samples = samples.cpu().numpy()
+    if highlight_indices is not None and isinstance(highlight_indices, torch.Tensor):
+        highlight_indices = highlight_indices.cpu().numpy()
+
+    # Optionally flip highlight_indices
+    if highlight_indices is not None and flip_highlight_indices:
+        n_rows = input_heatmap.shape[0]
+        highlight_indices = np.array(
+            [[n_rows - 1 - y, x] for y, x in highlight_indices]
+        )
+
     x_labels = np.linspace(-np.pi, np.pi, input_heatmap.shape[1])
     y_labels = np.linspace(-15, 15, input_heatmap.shape[0])
 
     if ax is None:
-        # Create a new figure and axes if ax is not provided
         fig, ax = plt.subplots()
 
-    # Create the heatmap
     sns.heatmap(
         input_heatmap,
         xticklabels=x_labels,
@@ -51,13 +78,40 @@ def show_heatmap(input_heatmap, samples, title=None, ax=None, vmin=None, vmax=No
         vmax=vmax,
     )
     snbs = 1 - np.sum(input_heatmap * samples) / np.sum(samples)
-    # snbs = 1 - np.sum(input_heatmap) / num_samples
-    # Set heatmap properties
-    title = f"{title}_SNBS_{snbs:.4f}"
+    if title != None:
+        title = f"{title}_SNBS_{snbs:.4f}"
     set_heatmap_properties(ax, input_heatmap, title)
 
+    # Optionally plot highlighted cells
+    if highlight_indices is not None:
+        n_rows = input_heatmap.shape[0]
+
+        # Auto-compute marker size if not provided
+        if marker_size is None:
+            # Get axis bbox in display coordinates
+            bbox = ax.get_window_extent()
+            # Calculate points per data unit (average of x and y)
+            points_per_cell = min(
+                bbox.width / input_heatmap.shape[1],
+                bbox.height / input_heatmap.shape[0],
+            )
+            # Set marker size to match cell size (reduce slightly for aesthetics)
+            marker_size = points_per_cell * 0.9
+
+        for idx in highlight_indices:
+            y, x = idx
+            y_plot = n_rows - 1 - y
+            ax.plot(
+                x + 0.5,
+                y_plot + 0.5,
+                marker="o",
+                markerfacecolor="none",
+                markeredgecolor=highlight_color,
+                markersize=marker_size,
+                markeredgewidth=marker_edgewidth,
+            )
+
     if ax is None:
-        # Show the plot if ax is not provided
         plt.show()
 
 
@@ -96,9 +150,9 @@ def show_heatmaps_for_grid_node(
     """
     true_heatmap = data_loader.dataset[grid_index].y[node_index].numpy()
     sample_heatmap = data_loader.dataset[grid_index].sample_heatmaps[node_index].numpy()
-    predicted_heatmap = (
-        model(data_loader.dataset[grid_index])[node_index].detach().numpy()
-    )
+    output = model(data_loader.dataset[grid_index])
+    predicted, _, _ = _unwrap_model_output(output)
+    predicted_heatmap = predicted[node_index].detach().numpy()
 
     show_function(
         true_heatmap,
@@ -110,7 +164,12 @@ def show_heatmaps_for_grid_node(
 
 
 def show_multiple_side_by_side_heatmaps(
-    data_loader, model, grid_index, node_range, save_fig_name=None
+    data_loader,
+    model,
+    grid_index,
+    node_range,
+    save_fig_name=None,
+    highlight_indices=None,
 ):
     """
     Plots multiple side-by-side heatmaps in a single figure with 1 row for 2 nodes (4 heatmaps per row).
@@ -121,6 +180,7 @@ def show_multiple_side_by_side_heatmaps(
         grid_index: The index of the grid in the dataset.
         node_range: A range of node indices to plot heatmaps for.
         save_fig_name: If provided, saves the figure to the specified file. If None, displays the plot.
+        highlight_indices: If True, highlight shock positions using get_shock_location. If None/False, do not highlight.
     """
     num_nodes = len(node_range)
     num_rows = (num_nodes + 1) // 2  # Each row contains 2 nodes (4 heatmaps)
@@ -138,29 +198,53 @@ def show_multiple_side_by_side_heatmaps(
         sample_heatmap = (
             data_loader.dataset[grid_index].sample_heatmaps[node_index].numpy()
         )
-        predicted_heatmap = (
-            model(data_loader.dataset[grid_index])[node_index].detach().numpy()
-        )
+        output = model(data_loader.dataset[grid_index])
+        predicted, _, _ = _unwrap_model_output(output)
+        predicted_heatmap = predicted[node_index].detach().numpy()
 
         # Plot the true heatmap
-        show_heatmap(
-            true_heatmap,
-            sample_heatmap,
-            title=f"True Label",
-            ax=axes[row, col_offset],
-            vmin=0.0,
-            vmax=1.0,
-        )
+        if highlight_indices:
+            shock_pos, _ = get_shock_location(torch.from_numpy(true_heatmap))
+            show_heatmap(
+                true_heatmap,
+                sample_heatmap,
+                title=f"True Label",
+                ax=axes[row, col_offset],
+                vmin=0.0,
+                vmax=1.0,
+                highlight_indices=shock_pos,
+            )
+        else:
+            show_heatmap(
+                true_heatmap,
+                sample_heatmap,
+                title=f"True Label",
+                ax=axes[row, col_offset],
+                vmin=0.0,
+                vmax=1.0,
+            )
 
         # Plot the predicted heatmap
-        show_heatmap(
-            predicted_heatmap,
-            sample_heatmap,
-            title=f"Prediction",
-            ax=axes[row, col_offset + 1],
-            vmin=0.0,
-            vmax=1.0,
-        )
+        if highlight_indices:
+            shock_pos, _ = get_shock_location(torch.from_numpy(predicted_heatmap))
+            show_heatmap(
+                predicted_heatmap,
+                sample_heatmap,
+                title=f"Prediction",
+                ax=axes[row, col_offset + 1],
+                vmin=0.0,
+                vmax=1.0,
+                highlight_indices=shock_pos,
+            )
+        else:
+            show_heatmap(
+                predicted_heatmap,
+                sample_heatmap,
+                title=f"Prediction",
+                ax=axes[row, col_offset + 1],
+                vmin=0.0,
+                vmax=1.0,
+            )
 
     # Adjust layout
     plt.tight_layout()

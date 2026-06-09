@@ -3,11 +3,11 @@ from pathlib import Path
 import yaml
 import argparse
 
-src_path = Path(__file__).resolve().parent.parent / "src"
-sys.path.append(str(src_path))
+root_dir_path = Path(__file__).resolve().parent.parent
+sys.path.append(str(root_dir_path))
 
-from hyperparameter_study import run_optuna_study
-from training import setup_training
+from src.hyperparameter_study import run_optuna_study
+from src.training import setup_training
 
 
 # Parse command-line arguments
@@ -15,14 +15,21 @@ parser = argparse.ArgumentParser(description="Run Optuna hyperparameter study")
 parser.add_argument(
     "job_id", type=str, nargs="?", default=None, help="Job ID for the study"
 )
+parser.add_argument(
+    "--config_dir",
+    type=str,
+    default=str(Path(__file__).resolve().parent.parent / "config"),
+    help="Path to the configuration directory",
+)
 
 try:
     args = parser.parse_args()
     job_id = args.job_id
+    config_dir = Path(args.config_dir)
 except SystemExit:
     job_id = "no_job_id"
+    config_dir = Path(__file__).resolve().parent.parent / "config"
 
-config_dir = Path(__file__).resolve().parent.parent / "config"
 training_config_path = config_dir / "training_config.yaml"
 
 if not training_config_path.exists():

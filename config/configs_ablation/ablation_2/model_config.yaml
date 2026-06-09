@@ -1,0 +1,11 @@
+dbgnn::num_steps: 10
+gnn_dropout_rate: 0.04
+gnn_hidden_channels: 512
+gnn_in_channels: 1
+gnn_layer_type: DBGNN
+gnn_num_layers: 2
+gnn_out_channels: 512
+image_size: 20
+mlp_dropout: 0.02
+mlp_hidden_channels: 512
+mlp_out_channels: 512

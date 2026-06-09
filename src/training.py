@@ -4,22 +4,49 @@ import os
 import shutil
 import subprocess
 from torch_geometric.data import DataLoader
-from oscillator_landscape import oscillatorLandscapceDataset
-
 import random
 import numpy as np
 from pathlib import Path
 
+from src.oscillator_landscape import oscillatorLandscapceDataset
 
-def train_loop(model, optimizer, criterion, data_loader, device):
+
+def _unwrap_model_output(output):
+    """
+    Normalize model outputs:
+    - standard decoders return Tensor
+    - VAE decoder returns (images, mu, logvar)
+    """
+    if isinstance(output, tuple):
+        if len(output) == 3:
+            images, mu, logvar = output
+        else:
+            # Fallback: assume first element is images
+            images, mu, logvar = output[0], None, None
+    else:
+        images, mu, logvar = output, None, None
+    return images, mu, logvar
+
+
+def _kl_divergence(mu, logvar):
+    # KL for diagonal Gaussian
+    return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+
+
+def train_loop(model, optimizer, criterion, data_loader, device, vae_beta=0.0):
     r2_score = R2Score().to(device)
     model.train()
     total_loss = 0
     for data in data_loader:
         data = data.to(device)
         optimizer.zero_grad()
-        images = model(data)
-        loss = criterion(images, data.y)
+        output = model(data)
+        images, mu, logvar = _unwrap_model_output(output)
+        recon_loss = criterion(images, data.y)
+        kl_loss = (
+            _kl_divergence(mu, logvar) / images.shape[0] if mu is not None else 0.0
+        )
+        loss = recon_loss + vae_beta * kl_loss
         snbs_predicted, snbs_labels = compute_snbs_pred_labels(
             images, data.y, data.sample_heatmaps
         )
@@ -30,15 +57,20 @@ def train_loop(model, optimizer, criterion, data_loader, device):
     return total_loss, r2_score.compute()
 
 
-def eval_loop(model, criterion, data_loader, device):
+def eval_loop(model, criterion, data_loader, device, vae_beta=0.0):
     r2_score = R2Score().to(device)
     model.eval()
     total_loss = 0
     with torch.no_grad():
         for data in data_loader:
             data = data.to(device)
-            images = model(data)
-            loss = criterion(images, data.y)
+            output = model(data)
+            images, mu, logvar = _unwrap_model_output(output)
+            recon_loss = criterion(images, data.y)
+            kl_loss = (
+                _kl_divergence(mu, logvar) / images.shape[0] if mu is not None else 0.0
+            )
+            loss = recon_loss + vae_beta * kl_loss
             snbs_predicted, snbs_labels = compute_snbs_pred_labels(
                 images, data.y, data.sample_heatmaps
             )
@@ -69,24 +101,16 @@ def setup_training(training_config, config_files):
     if not os.path.exists(training_dir):
         os.makedirs(training_dir)
 
-    # Copy configuration files to training_dir
-    for config_file in config_files:
-        shutil.copy(
-            config_file, os.path.join(training_dir, os.path.basename(config_file))
-        )
-
     # Get the current git commit hash
     git_commit = (
         subprocess.check_output(["git", "rev-parse", "HEAD"]).strip().decode("utf-8")
     )
 
     # Write the git commit hash to a temporary file
-    temp_git_commit_path = "git_commit.txt"
-    with open(temp_git_commit_path, "w") as f:
+    git_commit_path = os.path.join(training_dir, "git_commit.txt")
+    with open(git_commit_path, "w") as f:
         f.write(git_commit)
 
-    # Move the git commit hash file to the training_dir
-    shutil.move(temp_git_commit_path, os.path.join(training_dir, "git_commit.txt"))
     set_seed(training_config["manual_seed"])
 
 
@@ -158,10 +182,37 @@ def save_checkpoint(path, model, optimizer, epoch, val_loss_best):
     torch.save(checkpoint, path)
 
 
-def load_checkpoint(path, model, optimizer):
+def load_checkpoint(path, model, optimizer, allow_partial: bool = False):
+    """
+    Load checkpoint with optional tolerant loading (for changed decoder heads).
+    If allow_partial is True, only parameters with matching keys and shapes are loaded.
+    """
     checkpoint = torch.load(path)
-    model.load_state_dict(checkpoint["model_state_dict"])
-    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    state_dict = checkpoint["model_state_dict"]
+    if allow_partial:
+        model_state = model.state_dict()
+        compatible_state = {
+            k: v
+            for k, v in state_dict.items()
+            if k in model_state and model_state[k].shape == v.shape
+        }
+        skipped = set(state_dict.keys()) - set(compatible_state.keys())
+        if skipped:
+            print(f"load_checkpoint: skipped incompatible keys: {sorted(skipped)}")
+        model.load_state_dict(compatible_state, strict=False)
+    else:
+        model.load_state_dict(state_dict)
+    if optimizer is not None:
+        if allow_partial:
+            try:
+                optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            except ValueError as e:
+                # Optimizer param groups changed (e.g., decoder swap); proceed with fresh optimizer.
+                print(
+                    f"load_checkpoint: optimizer state mismatch, skipping load. Error: {e}"
+                )
+        else:
+            optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
     return checkpoint["epoch"], checkpoint["val_loss_best"]
 
 

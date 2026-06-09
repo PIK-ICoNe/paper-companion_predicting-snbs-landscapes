@@ -1,5 +1,3 @@
-cnn_base_channels: 64
-decoder_type: cnn
 gnn_dropout_rate: 0.1483745044419462
 gnn_hidden_channels: 1751
 gnn_in_channels: 1
@@ -10,10 +8,3 @@ image_size: 20
 mlp_dropout: 0.26
 mlp_hidden_channels: 654
 mlp_out_channels: 512
-vae_latent_dim: 128
-vit_depth: 2
-vit_dropout: 0.1
-vit_hidden_dim: 256
-vit_mlp_ratio: 4.0
-vit_num_heads: 4
-vit_use_sigmoid: false

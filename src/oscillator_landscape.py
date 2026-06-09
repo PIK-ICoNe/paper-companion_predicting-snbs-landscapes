@@ -8,6 +8,7 @@ import torch
 from torch_geometric.data import Data as gData
 from torch_geometric.data import InMemoryDataset as InMemoryDataset
 
+# heatmaps_path = "/home/junyou/PHD/NeurIPS_2025_dataset_track/dataset_20_resolutions/"
 heatmaps_path = "/home/nauck/joined_work/landscape_generation/datasets/combined/"
 
 
@@ -41,32 +42,71 @@ class oscillatorLandscapceDataset(InMemoryDataset):
         force_reload=False,
     ):
         self.name = name
-        self.split = split
+        # Map 'val' to 'valid' internally for consistency
+        if split == "val":
+            self.split = "valid"
+        else:
+            self.split = split
         self.normalize_targets = normalize_targets
-        assert name in ["ds20", "ds100"]
-        assert num_sections in [20]
+
+        # Allow additional evaluation-only datasets
+        eval_only_names = ["osf_france", "osf_gb", "osf_spain", "elmod"]
+        allowed_names = ["ds20", "ds100"] + eval_only_names
+        assert name in allowed_names, f"Unknown dataset name: {name}"
+
+        # Require num_sections == 20 for all datasets, including eval-only
+        assert num_sections in [
+            10,
+            20,
+            30,
+        ], "num_sections must match prepared data for all datasets"
 
         self.heatmap_path = os.path.join(
             heatmaps_path, f"num_sections_{num_sections}", self.name
         )
-        self.root = os.path.join(
-            root, name
-        )  # Set self.root before calling the superclass __init__
-        if slice_index == None:
-            if self.split == "train":
-                self.slice_index = slice(1, 7000)
-            elif self.split == "val":
-                self.slice_index = slice(7001, 8500)
-            elif self.split == "test":
-                self.slice_index = slice(8501, 10000)
+        # Build a cache tag incorporating num_sections (and slice range if provided) to avoid stale reuse.
+        cache_tag_parts = [f"sections{num_sections}"]
+        if slice_index is not None:
+            cache_tag_parts.append(f"slice{slice_index.start}_{slice_index.stop}")
+        cache_tag = "__".join(cache_tag_parts)
+        # Use nested subdirectory: root/<dataset_name>/<dataset_name>_<cache_tag>
+        self.root = os.path.join(root, name, f"{name}_{cache_tag}")
+
+        # For eval-only datasets, only allow test split
+        if name in eval_only_names:
+            if self.split != "test":
+                raise ValueError(f"Only 'test' split is supported for {name}")
+            # Use the full available range if not specified
+            if slice_index is None:
+                # Try to infer available indices from files
+                files = [
+                    f
+                    for f in os.listdir(self.heatmap_path)
+                    if f.startswith("heatmap_grid_") and f.endswith(".h5")
+                ]
+                indices = [int(f.split("_")[-1].split(".")[0]) for f in files]
+                if indices:
+                    min_idx, max_idx = min(indices), max(indices)
+                    self.slice_index = slice(min_idx, max_idx)
+                else:
+                    self.slice_index = slice(1, 10000)  # fallback
+            else:
+                self.slice_index = slice_index
         else:
-            self.slice_index = slice_index
+            if slice_index is None:
+                if self.split == "train":
+                    self.slice_index = slice(1, 7000)
+                elif self.split == "valid":  # changed from 'val' to 'valid'
+                    self.slice_index = slice(7001, 8500)
+                elif self.split == "test":
+                    self.slice_index = slice(8501, 10000)
+            else:
+                self.slice_index = slice_index
+
         super().__init__(
             self.root, transform, pre_transform, pre_filter, force_reload=force_reload
-        )  # Use self.root here
-        path = os.path.join(self.processed_dir, f"{split}.pt")
-        if not os.path.exists(path) or force_reload:
-            self.process()
+        )
+        path = os.path.join(self.processed_dir, f"{self.split}.pt")
         self.data, self.slices = torch.load(path)
 
     @property
@@ -75,7 +115,7 @@ class oscillatorLandscapceDataset(InMemoryDataset):
 
     @property
     def processed_file_names(self):
-        return ["train.pt", "valid.pt", "test.pt"]
+        return [f"{self.split}.pt"]  # ["train.pt", "valid.pt", "test.pt"]
 
     @property
     def raw_dir(self):

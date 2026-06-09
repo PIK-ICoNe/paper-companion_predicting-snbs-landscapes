@@ -1,5 +1,5 @@
-training_dir: "/home/nauck/joined_work/landscape_generation/ml_training/test"
-dataset_root_path: "/home/nauck/joined_work/landscape_generation/datasets/root_path"
+training_dir: "/home/junyou/PHD/gnn_landscape_generation_ICLR/ml_training/tmp_try_uv_ds20"
+dataset_root_path: "/home/junyou/PHD/Chris_GNN_Landscape/root_path"
 batch_size: 32
 learning_rate: 6.767139599714456e-05
 num_epochs: 250
@@ -10,3 +10,8 @@ test_slice_index: [8501, 10000]
 dataset_name: "ds20"
 num_sections: 20
 manual_seed: 1
+vae_beta: 0.0
+resume_from_checkpoint: false
+save_model_indermediate_steps: false
+model_indermediate_num_checkpoints: 12
+model_indermediate_late_fractions: [0.25, 0.5, 0.75, 1.0]

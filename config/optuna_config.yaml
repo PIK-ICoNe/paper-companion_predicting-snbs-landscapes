@@ -1,4 +1,4 @@
-study_name: opt_TAG_ds100_lr
+study_name: opt_ns10_TAG_ds20_lr
 learning_rate:
   low: 1e-7
   high: 1e-3

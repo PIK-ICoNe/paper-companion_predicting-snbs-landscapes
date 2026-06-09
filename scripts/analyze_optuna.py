@@ -7,24 +7,28 @@ import torch.nn as nn
 import copy
 
 root_dir_path = Path(__file__).resolve().parent.parent
+sys.path.append(str(root_dir_path))
 
-src_path = Path(__file__).resolve().parent.parent / "src"
-sys.path.append(str(src_path))
 
-from hyperparameter_study import (
+from src.hyperparameter_study import (
     print_plot_study,
     plot_loss_over_epochs,
     load_best_model,
 )
 
-from training import load_datasets, eval_loop
-from plotting import show_heatmaps_for_grid_node, show_multiple_side_by_side_heatmaps
+from src.training import load_datasets, eval_loop
+from src.plotting import (
+    show_heatmaps_for_grid_node,
+    show_multiple_side_by_side_heatmaps,
+)
 
 # %%
 device = "cuda"
 
 # Define the training directory
-training_dir = Path("/home/nauck/joined_work/landscape_generation/ml_training/opt017")
+training_dir = Path(
+    "/home/nauck/joined_work/landscape_generation/ml_training/ns10_ds20_op01"
+)
 
 # %%
 print_plot_study(training_dir)

@@ -11,13 +11,13 @@ import yaml
 import sys
 from pathlib import Path
 
-src_path = Path(__file__).resolve().parent.parent / "src"
-sys.path.append(str(src_path))
+root_dir_path = Path(__file__).resolve().parent.parent
+sys.path.append(str(root_dir_path))
 
-from oscillator_landscape import oscillatorLandscapceDataset
-from gnn import init_model
-from training import load_datasets, eval_loop
-from plotting import show_side_by_side_heatmaps, show_heatmaps_for_grid_node
+from src.oscillator_landscape import oscillatorLandscapceDataset
+from src.gnn import init_model
+from src.training import load_datasets, eval_loop
+from src.plotting import show_side_by_side_heatmaps, show_heatmaps_for_grid_node
 
 # Check for GPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

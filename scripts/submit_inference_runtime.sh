@@ -1,19 +1,20 @@
 #!/bin/bash
 
 #SBATCH --qos=gpushort
-#SBATCH --job-name=run_ds100_TAG_ns20
+#SBATCH --job-name=inference_runtime
 #SBATCH --output=logs/%x-%j-%N.out
 #SBATCH --error=logs/%x-%j-%N.err
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
-#SBATCH --mem=80000
+#SBATCH --mem=32000
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=5
-#SBATCH --time=1-0
+#SBATCH --ntasks-per-node=1
+#SBATCH --time=0-02:00
+
 export TEMP=$TMPDIR
 export TEMPDIR=$TMPDIR
-export TMPDIR=/p/tmp/nauck/optuna/$SLURM_JOBID;
-mkdir $TMPDIR
+export TMPDIR=/p/tmp/nauck/inference_runtime/$SLURM_JOBID
+mkdir -p "$TMPDIR"
 
 echo "------------------------------------------------------------"
 echo "SLURM JOB ID: $SLURM_JOBID"
@@ -23,13 +24,6 @@ echo "------------------------------------------------------------"
 module use /p/system/modulefiles/compiler /p/system/modulefiles/gpu /p/system/modulefiles/library /p/system/modulefiles/tools
 module use cuda
 
-# NOTEBOOKPORT=`shuf -i 8000-8500 -n 1`
-# TUNNELPORT=`shuf -i 8501-9000 -n 1`
+uv run --offline inference_runtime.py
 
-# ssh -R$TUNNELPORT:localhost:$NOTEBOOKPORT $SLURM_SUBMIT_HOST -N -f
-
-# echo "ssh -L8887:localhost:$TUNNELPORT $SLURM_SUBMIT_HOST -N"
-
-uv run --offline run_multiple_seeds.py --seeds 1 2 3 4 5 --config_dir "$1" #$SLURM_JOBID
-
-rm -rf $TMPDIR 
+rm -rf "$TMPDIR"

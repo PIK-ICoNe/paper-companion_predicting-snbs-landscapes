@@ -30,7 +30,7 @@ module use cuda
 
 # echo "ssh -L8887:localhost:$TUNNELPORT $SLURM_SUBMIT_HOST -N"
 
-uv run --offline eval_multiple_seeds.py "$@"
+uv run --offline eval_critical_cells_multiple_seeds.py "$@"
 ## Check if the second argument (study_name) is provided
 #if [ -z "$2" ]; then
 #    # If study_name is not provided, call the script with only training_dir

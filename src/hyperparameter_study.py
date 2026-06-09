@@ -10,8 +10,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from itertools import cycle
 
-from gnn import init_model
-from training import train_loop, eval_loop, load_datasets, save_checkpoint
+from src.gnn import init_model
+from src.training import train_loop, eval_loop, load_datasets, save_checkpoint
 
 
 def load_configurations(config_dir):
@@ -162,9 +162,20 @@ def objective(
     num_epochs = training_config["num_epochs"]
     for epoch in range(num_epochs):
         train_loss, train_R2 = train_loop(
-            model, optimizer, criterion, train_loader, device
+            model,
+            optimizer,
+            criterion,
+            train_loader,
+            device,
+            vae_beta=training_config["vae_beta"],
         )
-        val_loss, val_R2 = eval_loop(model, criterion, val_loader, device)
+        val_loss, val_R2 = eval_loop(
+            model,
+            criterion,
+            val_loader,
+            device,
+            vae_beta=training_config["vae_beta"],
+        )
 
         # Append values to sequences
         train_losses.append(train_loss)
@@ -213,6 +224,7 @@ def objective(
 
 def run_optuna_study(config_dir, training_dir):
     model_config, training_config, optuna_config = load_configurations(config_dir)
+    training_config.setdefault("vae_beta", 0.0)
 
     # Set image_size based on num_sections
     model_config["image_size"] = training_config["num_sections"]

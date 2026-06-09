@@ -12,11 +12,11 @@ import argparse
 import sys
 from pathlib import Path
 
-src_path = Path(__file__).resolve().parent.parent / "src"
-sys.path.append(str(src_path))
+root_dir_path = Path(__file__).resolve().parent.parent
+sys.path.append(str(root_dir_path))
 
-from gnn import init_model
-from training import (
+from src.gnn import init_model
+from src.training import (
     train_loop,
     eval_loop,
     setup_training,
@@ -55,6 +55,7 @@ with open(model_config_path, "r") as file:
 with open(training_config_path, "r") as file:
     training_config = yaml.safe_load(file)
 
+training_config.setdefault("vae_beta", 0.0)
 
 # Set image_size based on num_sections
 model_config["image_size"] = training_config["num_sections"]
@@ -90,17 +91,38 @@ optimizer = optim.Adam(model.parameters(), lr=training_config["learning_rate"])
 
 # Load checkpoint if exists
 checkpoint_path = os.path.join(training_dir, "best_model.pt")
-if os.path.exists(checkpoint_path):
-    start_epoch, val_loss_best = load_checkpoint(checkpoint_path, model, optimizer)
+resume_flag = training_config.get("resume_from_checkpoint", False)
+if resume_flag and os.path.exists(checkpoint_path):
+    try:
+        start_epoch, val_loss_best = load_checkpoint(
+            checkpoint_path, model, optimizer, allow_partial=True
+        )
+        print("Loaded checkpoint from", checkpoint_path)
+    except RuntimeError as e:
+        print(f"Failed to load checkpoint with new decoder; starting fresh. Error: {e}")
+        start_epoch, val_loss_best = 0, 1e10
 else:
     start_epoch = 0
     val_loss_best = 1e10
 
 num_epochs = training_config["num_epochs"]
 for epoch in range(start_epoch, num_epochs):
-    train_loss, train_R2 = train_loop(model, optimizer, criterion, train_loader, device)
+    train_loss, train_R2 = train_loop(
+        model,
+        optimizer,
+        criterion,
+        train_loader,
+        device,
+        vae_beta=training_config["vae_beta"],
+    )
     if (epoch + 1) % training_config["eval_interval"] == 0:
-        val_loss, val_R2 = eval_loop(model, criterion, val_loader, device)
+        val_loss, val_R2 = eval_loop(
+            model,
+            criterion,
+            val_loader,
+            device,
+            vae_beta=training_config["vae_beta"],
+        )
         train_loss_sci = f"{train_loss/len(train_loader):.4e}"
         val_loss_sci = f"{val_loss/len(val_loader):.4e}"
         print(

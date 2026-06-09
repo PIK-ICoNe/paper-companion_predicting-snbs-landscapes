@@ -2,10 +2,10 @@
 import sys
 from pathlib import Path
 
-src_path = Path(__file__).resolve().parent.parent / "src"
-sys.path.append(str(src_path))
+root_dir_path = Path(__file__).resolve().parent.parent
+sys.path.append(str(root_dir_path))
 
-from oscillator_landscape import oscillatorLandscapceDataset
+from src.oscillator_landscape import oscillatorLandscapceDataset
 
 # %%
 # grid_path = "/home/nauck/joined_work/landscape_generation/datasets/grids4ML/ds20"

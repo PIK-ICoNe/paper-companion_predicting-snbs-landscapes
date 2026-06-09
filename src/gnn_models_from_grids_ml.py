@@ -1,1 +1,1 @@
-/home/nauck/projects/dynamic_stability_dataset/grids_ml/ray_src/gnn_models.py
+gnn_models.py
