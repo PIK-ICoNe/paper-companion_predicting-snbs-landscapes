@@ -1,3 +1,10 @@
 __pycache__
-gnn_landscape_generation.code-workspace
-pics
+.env
+scripts/logs/*
+scripts/debug.py
+*.code-workspace
+pics/*
+ml_training
+config/configs_ablation
+csv_results
+scripts/pics/
