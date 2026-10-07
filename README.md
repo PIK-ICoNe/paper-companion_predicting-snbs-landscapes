@@ -87,7 +87,24 @@ The following scripts generate all tables and figures from the paper:
 
 The Zenodo repository also includes the code and resources required to generate basin heatmaps based on dynamical simulations.
 
+
+### Basin Heatmap Label Convention
+
+The dataset's `basin_heatmap_i` arrays store the **non-recovered fraction**: for each of the 20×20 cells of the (ϕ, ϕ̇) perturbation plane, the fraction of Monte-Carlo perturbation samples in that cell whose maximum final frequency deviation *exceeds* the threshold 0.1, i.e. perturbations that fail to recover. This is the **complement** of the recovered fraction L⁽ⁱ⁾ defined in Eq. (5) of the paper:
+
+    L⁽ⁱ⁾ = 1 − basin_heatmap_i
+
+All code in this repository consumes the stored convention directly: SNBS is computed as `1 - sum(basin_heatmap_i · samples_heatmap_i) / sum(samples_heatmap_i)`. When loading the files (e.g. with `h5py`), **do not apply a complement or a transposition**: as read by h5py, rows index the ϕ̇ (frequency-deviation) bin and columns index the ϕ (phase-angle) bin, both ascending from the sampled minimum. Bin edges are computed per grid from the empirical extrema of the sampled perturbations, which are drawn uniformly from the nominal box [−π, π] × [−15, 15]. `samples_heatmap_i` stores the per-cell sample counts used as weights above.
+
+
+
 ## Training and Evaluation
+
+### Loss and Metrics
+
+All comparator models in *Predicting Single-Node Basin Landscapes of Kuramoto Oscillators Using Graph Neural Networks* are trained with the **plain, unweighted mean squared error** of Eq. (8) (`nn.MSELoss()` over the stored `basin_heatmap_i` targets). The per-cell Monte-Carlo sample counts `samples_heatmap_i` are used **only** to aggregate the SNBS metric, `SNBS_i = 1 − Σ(H_i·q_i)/Σq_i`.
+
+Appendix A.4 derives a weighted-MSE upper bound on the SNBS error; that bound is an analysis tool, not the training objective.
 
 ### Running Training
 
@@ -131,3 +148,17 @@ To run ablation studies on hyperparameters:
 uv run --offline python scripts/run_ablation_study.py
 uv run --offline python scripts/eval_multiple_seeds.py --training_dir ml_training/run_ABLATION_NAME --extra_grids osf_france osf_gb osf_spain elmod
 ```
+
+## License
+
+The code in this repository is licensed under the MIT License — see the
+[LICENSE](LICENSE) file.
+
+The datasets used by this repository are licensed separately under CC BY 4.0:
+
+- Hugging Face: [Stability Landscapes](https://huggingface.co/datasets/PIK-ICoNe-landscape/Stability_Landscapes)
+- Zenodo: [10.5281/zenodo.15373799](https://doi.org/10.5281/zenodo.15373799)
+
+The two licences are independent: MIT covers the code only, not the data.
+
+This repository accompanies our ICML paper. If you use this code, please cite the paper.
